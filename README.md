@@ -4,11 +4,13 @@ A module to decode/encode xml into a tree structure.
 
 ## Examples
 
-Handles well formed html.
+Handles well formed xml/html.
 
 ```elixir
 Exoml.decode("<tag foo=bar>some text<self closing /></tag>")
-{"tag", [{"foo", "bar"}], ["some text", {"self", [{"closing"}], nil}]}
+{:root, [],
+ [{"tag", [{"foo", "bar"}],
+   ["some text", {"self", [{"closing", "closing"}], nil}]}]}
 ```
 
 Handles bare strings.
@@ -16,6 +18,9 @@ Handles bare strings.
 ```elixir
 Exoml.decode("what, this is not xml")
 {:root, [], ["what, this is not xml"]}
+
+Exoml.decode("")
+{:root, [], []}
 ```
 
 Handles stuff that any browser would render.
@@ -33,13 +38,19 @@ xml = ~s'<tag foo="bar">some text</tag>'
 # => "<tag foo=\"bar\">some text</tag>"
 ```
 
+## Performance
+
+See `bench/` directory or run `mix bench` upon checkout.
+
+Here are the results on a `MacBookPro11,5 i7 2.5GHz 16GB RAM`:
+
 ## Installation
 
 If [available in Hex](https://hex.pm/docs/publish), the package can be installed
 by adding `exoml` to your list of dependencies in `mix.exs`:
 
 ```elixir
-{:exoml, "~> 0.0.1"}
+{:exoml, "~> 0.0.2"}
 ```
 
 Documentation can be generated with [ExDoc](https://github.com/elixir-lang/ex_doc)

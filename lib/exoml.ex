@@ -5,7 +5,7 @@ defmodule Exoml do
   The aim of this parser is to be able to represent any xml/html5 document as a tree-like structure,
   but be able to put it back together in a sane way.
 
-  In comparison to other xml parsers, this one preserves 99.9% of the broken stuff.
+  In comparison to other xml parsers, this one preserves broken stuff.
   The goal is to be able to decode the typical broken html document, modify it, and encode it again,
   without loosing too much of its quirks.
 
@@ -17,9 +17,16 @@ defmodule Exoml do
   With well-formed XML, the parser does work really well.
   """
 
-  @typep attrs() :: binary() | {binary(), binary()} | {binary()}
-  @typep n_list() :: [] | [n()]
-  @typep n() :: binary() | {binary(), attrs(), n_list()} | {binary(), attrs(), nil}
+  @type attr() :: binary() | {binary(), binary()}
+  @type attr_list() :: [] | [attr()]
+  @type xmlnode_list() :: [] | [xmlnode()]
+  @type xmlnode() ::
+    binary() |
+    {binary(), attr_list(), xmlnode_list()} |
+    {binary(), attr_list(), nil} |
+    {atom(), attr_list(), nil} |
+    {atom(), attr_list(), xmlnode_list()}
+  @type xmlroot() :: {:root, [], xmlnode_list()}
 
   @doc """
   Returns a tree representation from the given xml/html5 string.
@@ -27,7 +34,9 @@ defmodule Exoml do
   ## Examples
 
       iex> Exoml.decode("<tag foo=bar>some text<self closing /></tag>")
-      {"tag", [{"foo", "bar"}], ["some text", {"self", [{"closing"}], nil}]}
+      {:root, [],
+       [{"tag", [{"foo", "bar"}],
+         ["some text", {"self", [{"closing", "closing"}], nil}]}]}
 
       iex> Exoml.decode("what, this is not xml")
       {:root, [], ["what, this is not xml"]}
@@ -35,8 +44,11 @@ defmodule Exoml do
       iex> Exoml.decode("Well, it renders <b>in the browser</b>")
       {:root, [], ["Well, it renders ", {"b", [], ["in the browser"]}]}
 
+      iex> Exoml.decode("")
+      {:root, [], []}
+
   """
-  @spec decode(binary()) :: node()
+  @spec decode(binary()) :: xmlroot()
   def decode(bin) when is_binary(bin) do
     Exoml.Decoder.decode(bin)
   end
@@ -44,7 +56,9 @@ defmodule Exoml do
   @doc """
   Returns a string representation from the given xml tree
 
-  Note: Exoml does not aim to perfectly preserve a decoded xml document. Just well enough.
+  > Note when encoding a previously decoded xml document:
+  > Exoml does not perfectly preserve everything from a decoded xml document.
+  > In general, it preserves just well enough, but don't expect a 1-1 conversion.
 
   ## Examples
 
@@ -53,7 +67,7 @@ defmodule Exoml do
       "<tag foo=\"bar\">some text</tag>"
 
   """
-  @spec encode(n()) :: binary()
+  @spec encode(xmlroot()) :: binary()
   def encode(tree) when is_tuple(tree) do
     Exoml.Encoder.encode(tree)
   end

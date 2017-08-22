@@ -1,0 +1,4 @@
+duration:60.0;mem stats:false;sys mem stats:false
+module;test;tags;iterations;elapsed
+BasicHtmlBench	decode		2000	88100152
+BasicHtmlBench	encode		10000	122974849

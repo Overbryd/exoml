@@ -7,27 +7,14 @@ defmodule Exoml.Decoder do
   @attr_value_quote ["'", ~s'"']
 
   def decode(bin) when is_binary(bin) do
-    dom(bin)
+    root(bin, [])
   end
 
-  defp dom(bin) when is_binary(bin) do
-    dom(bin, [])
-  end
+  defp root("", children), do: {:root, [], children}
 
-  defp dom("", children), do: {:root, [], children}
-
-  defp dom(bin, children) do
-    case content(bin, "", "") do
-      # single text node, wrap in :root
-      {[node], ""} when is_binary(node) ->
-        dom("", [node])
-      # tree node
-      {[node], ""} when is_tuple(node) ->
-        node
-      # continue parsing
-      {nodes, trail} ->
-        dom(trail, children ++ nodes)
-    end
+  defp root(bin, children) do
+    {nodes, trail} = content(bin, "", "")
+    root(trail, children ++ nodes)
   end
 
   # comment
@@ -41,7 +28,8 @@ defmodule Exoml.Decoder do
     case String.split(bin, "-->", parts: 2) do
       # closing comment
       [body, trail] ->
-        {["<!--#{body}-->" | nodes], trail}
+        node = {:comment, [], [body]}
+        {[node | nodes], trail}
       # unclosed comment
       [trail] ->
         {["<!--#{trail}" | nodes], ""}
@@ -58,16 +46,6 @@ defmodule Exoml.Decoder do
     end
   end
 
-  defp prolog(xml, trail, lead) do
-    case String.split(trail, "?>", parts: 2) do
-      [head, trail] ->
-        node = {:prolog, attrs(head), nil}
-        {[node], trail}
-      [trail] ->
-        content("", "", lead <> "<?" <> xml <> trail)
-    end
-  end
-
   # <!DOCTYPE
 
   defp content(<<"<!", dt :: binary-size(7), trail :: binary>>, "", lead) do
@@ -75,21 +53,6 @@ defmodule Exoml.Decoder do
       doctype(dt, trail, lead)
     else
       content(trail, "", lead <> "<!" <> dt)
-    end
-  end
-
-  defp doctype(dt, trail, lead) do
-    nodes = if lead == "" do
-      []
-    else
-      [lead]
-    end
-    case String.split(trail, ">", parts: 2) do
-      [head, trail] ->
-        node = {:doctype, [head], nil}
-        {[node], trail}
-      [trail] ->
-        content("", "", lead <> "<!" <> dt <> trail)
     end
   end
 
@@ -150,6 +113,26 @@ defmodule Exoml.Decoder do
       {[], ""}
     else
       {[lead], ""}
+    end
+  end
+
+  defp doctype(dt, trail, lead) do
+    case String.split(trail, ">", parts: 2) do
+      [head, trail] ->
+        node = {:doctype, [head], nil}
+        {[node], trail}
+      [trail] ->
+        content("", "", lead <> "<!" <> dt <> trail)
+    end
+  end
+
+  defp prolog(xml, trail, lead) do
+    case String.split(trail, "?>", parts: 2) do
+      [head, trail] ->
+        node = {:prolog, attrs(head), nil}
+        {[node], trail}
+      [trail] ->
+        content("", "", lead <> "<?" <> xml <> trail)
     end
   end
 
@@ -230,7 +213,7 @@ defmodule Exoml.Decoder do
   end
 
   defp attr_name(<<part :: binary-size(1), trail :: binary>>, name, acc) do
-    attr_name(trail, "#{name}#{part}", acc)
+    attr_name(trail, name <> part, acc)
   end
 
   defp attr_name("", name, acc) do
@@ -249,6 +232,7 @@ defmodule Exoml.Decoder do
     attr_value(trail, name, "", acc)
   end
 
+  # stop on whitespace for unquoted attribute values
   defp attr_value(<<ws :: binary-size(1), trail :: binary>>, name, value, acc) when ws in @ascii_whitespace do
     attrs(trail, [{name, value} | acc])
   end
@@ -273,7 +257,7 @@ defmodule Exoml.Decoder do
   end
 
   defp attr_value(trail, name, nil, acc) do
-    attrs(trail, [{name} | acc])
+    attrs(trail, [{name, name} | acc])
   end
 
   defp attr_value(<<part :: binary-size(1), trail :: binary>>, name, value, acc) do
@@ -283,7 +267,7 @@ defmodule Exoml.Decoder do
   defp attr_value("", name, value, acc) do
     if is_nil(value) do
       # empty single attribute
-      [{name} | acc]
+      [{name, name} | acc]
     else
       # key-value attribute
       [{name, value} | acc]

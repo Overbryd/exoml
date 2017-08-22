@@ -6,13 +6,25 @@ defmodule ExomlTest do
     assert xml == Exoml.encode(Exoml.decode(xml))
   end
 
-  test "virtual root node" do
+  test "virtual root node, never gonna give you up" do
     assert {:root, [], [{"tag", [], nil}, {"tag", [], nil}]} = Exoml.decode("<tag/><tag/>")
-    assert {:root, [], [{"tag", [], nil}, "\n    ", {"tag", [], nil}]} = Exoml.decode("<tag/>\n    <tag/>")
+    assert {:root, [], ["\nfoo"]} = Exoml.decode("\nfoo")
+    assert {:root, [], []} = Exoml.decode("")
+  end
+
+  test "tag without content" do
+    assert {:root, [], [{"tag", [], []}]} = Exoml.decode("<tag></tag>")
+    assert {:root, [], [{"tag", [], []}]} = Exoml.decode("<tag   ></tag>")
+  end
+
+  test "tag with content" do
+    assert {:root, [], [{"tag", [], ["some freetext"]}]} = Exoml.decode("<tag>some freetext</tag>")
+    assert {:root, [], [{"tag", [], ["\s\nsome freetext"]}]} = Exoml.decode("<tag>\s\nsome freetext</tag>")
   end
 
   test "self closing tag" do
-    assert {"tag", [], nil} = Exoml.decode("<tag/>")
+    assert {:root, [], [{"tag", [], nil}]} = Exoml.decode("<tag/>")
+    assert {:root, [], [{"tag", [], nil}]} = Exoml.decode("<tag   />")
   end
 
   test "virtual root node with text nodes" do
@@ -20,21 +32,28 @@ defmodule ExomlTest do
   end
 
   test "prolog" do
-    assert {:prolog, [{"version", "1.0"}, {"encoding", "utf-8"}], nil} = Exoml.decode("<?xml version=1.0 encoding=utf-8?>")
-    assert {:prolog, [{"version", "1.0"}, {"encoding", "utf-8"}], nil} = Exoml.decode("<?XML version=1.0 encoding=utf-8 ?>")
-    assert {:prolog, [{"version", "1.0"}, {"encoding", "utf-8"}], nil} = Exoml.decode("<?XmL version=1.0 encoding=utf-8 ?>")
+    prolog = {:prolog, [{"version", "1.0"}, {"encoding", "utf-8"}], nil}
+    assert {:root, [], [^prolog]} = Exoml.decode("<?xml version=1.0 encoding=utf-8?>")
+    assert {:root, [], [^prolog]} = Exoml.decode("<?XML version=1.0 encoding=utf-8 ?>")
+    assert {:root, [], [^prolog]} = Exoml.decode("<?XmL version=1.0 encoding=utf-8 ?>")
   end
 
   test "doctype" do
-    assert {:doctype, [" html"], nil} = Exoml.decode("<!DOCTYPE html>")
-    assert {:doctype, [" html"], nil} = Exoml.decode("<!doctype html>")
-    assert {:doctype, [" html"], nil} = Exoml.decode("<!dOcTyPe html>")
+    doctype = {:doctype, [" html"], nil}
+    assert {:root, [], [^doctype]} = Exoml.decode("<!DOCTYPE html>")
+    assert {:root, [], [^doctype]} = Exoml.decode("<!doctype html>")
+    assert {:root, [], [^doctype]} = Exoml.decode("<!dOcTyPe html>")
     assert {:root, [], [{:doctype, [" html"], nil}, "\n", {"html", [], []}]} = Exoml.decode("<!DOCTYPE html>\n<html></html>")
+    assert {:root, [], [{:doctype, [" html"], nil}, {"html", [{"lang", "en-US-x-Hixie"}], ["foobar"]}]} = Exoml.decode(~s'<!DOCTYPE html><html lang="en-US-x-Hixie">foobar</html>')
   end
 
   test "comments" do
-    assert {:root, [], ["<!-- some comment -->"]} = Exoml.decode("<!-- some comment -->")
-    assert {:root, [], ["<!--some comment > <!-->"]} = Exoml.decode("<!--some comment > <!-->")
+    assert {:root, [], [{:comment, [], [" some comment "]}]} = Exoml.decode("<!-- some comment -->")
+    assert {:root, [], [{:comment, [], ["some comment > <!"]}]} = Exoml.decode("<!--some comment > <!-->")
+  end
+
+  test "comment malformed" do
+    assert {:root, [], ["<!-- some attempt to comment --!>"]} = Exoml.decode("<!-- some attempt to comment --!>")
   end
 
   test "cdata" do
@@ -46,41 +65,40 @@ defmodule ExomlTest do
       </some>
     """
     xml = "<tag><![CDATA[#{escaped}]]></tag>"
-    assert {"tag", [], [
-      {:cdata, [], [^escaped]}
+    assert {:root, [], [
+      {"tag", [], [{:cdata, [], [^escaped]}]}
     ]} = Exoml.decode(xml)
-    assert {"ms", [], [{:cdata, [], ["x<y3"]}]} = Exoml.decode("<ms><![CDATA[x<y3]]></ms>")
+    assert {:root, [], [
+      {"ms", [], [{:cdata, [], ["x<y3"]}]}
+    ]} = Exoml.decode("<ms><![CDATA[x<y3]]></ms>")
   end
 
   test "cdata malformed" do
     xml = "<tag><![CDATA[<xml>foo</xml></tag>"
-    assert {"tag", [], [
-      "<![CDATA[",
-      {"xml", [], ["foo"]}
+    assert {:root, [], [
+      {"tag", [], ["<![CDATA[", {"xml", [], ["foo"]}]}
     ]} = Exoml.decode(xml)
-    assert {"ms", [], [{:cdata, [], ["x<y3"]}, "]]>"]} = Exoml.decode("<ms><![CDATA[x<y3]]>]]></ms>")
-  end
-
-  test "extract tag contents" do
-    assert {"tag", [], ["text"]} = Exoml.decode("<tag>text</tag>")
-    assert {"tag", [], ["text   "]} = Exoml.decode("<tag>text   </tag>")
-    assert {"tag", [], ["   text   "]} = Exoml.decode("<tag>   text   </tag>")
+    assert {:root, [], [
+      {"ms", [], [{:cdata, [], ["x<y3"]}, "]]>"]}
+    ]} = Exoml.decode("<ms><![CDATA[x<y3]]>]]></ms>")
   end
 
   test "nested tags" do
-    assert {"outer", [], [{"inner", [], ["text"]}]} = Exoml.decode("<outer><inner>text</inner></outer>")
-    assert {"outer", [], ["   ", {"inner", [], ["text"]}]} = Exoml.decode("<outer>   <inner>text</inner></outer>")
-    assert {"outer", [], ["   ", {"inner", [], ["text"]}, "   "]} = Exoml.decode("<outer>   <inner>text</inner>   </outer>")
-    assert {"outer", [], [
-      {"inner", [], [
-        "text",
-        {"span", [], ["more text"]}
-      ]
-    }]} = Exoml.decode("<outer><inner>text<span>more text</span></inner></outer>")
+    assert {:root, [], [{"outer", [], [{"inner", [], ["text"]}]}]} = Exoml.decode("<outer><inner>text</inner></outer>")
+    assert {:root, [], [{"outer", [], ["   ", {"inner", [], ["text"]}]}]} = Exoml.decode("<outer>   <inner>text</inner></outer>")
+    assert {:root, [], [{"outer", [], ["   ", {"inner", [], ["text"]}, "   "]}]} = Exoml.decode("<outer>   <inner>text</inner>   </outer>")
+    assert {:root, [], [
+      {"outer", [], [
+        {"inner", [], [
+          "text",
+          {"span", [], ["more text"]}
+        ]
+      }]}
+    ]} = Exoml.decode("<outer><inner>text<span>more text</span></inner></outer>")
   end
 
-  test "tag attributes" do
-    assert {"tag", [{"foo", "bar"}], nil} = Exoml.decode(~s'<tag foo="bar" />')
+  test "tag with attributes" do
+    assert {:root, [], [{"tag", [{"foo", "bar"}], nil}]} = Exoml.decode(~s'<tag foo="bar" />')
   end
 
   test "no attributes in tag" do
@@ -96,11 +114,11 @@ defmodule ExomlTest do
   end
 
   test "single attributes" do
-    assert [{"single"}] = Exoml.Decoder.attrs("single /")
-    assert [{"single"}] = Exoml.Decoder.attrs("   single   /")
+    assert [{"single", "single"}] = Exoml.Decoder.attrs("single /")
+    assert [{"single", "single"}] = Exoml.Decoder.attrs("   single   /")
     assert ["single/"] = Exoml.Decoder.attrs("single/")
-    assert [{"single"}] = Exoml.Decoder.attrs("   single")
-    assert [{"single"}] = Exoml.Decoder.attrs("   single   ")
+    assert [{"single", "single"}] = Exoml.Decoder.attrs("   single")
+    assert [{"single", "single"}] = Exoml.Decoder.attrs("   single   ")
   end
 
   test "key value attributes" do
@@ -129,7 +147,7 @@ defmodule ExomlTest do
       {"a", "1"},
       {"b", "2"},
       {"c", "3"},
-      {"d"},
+      {"d", "d"},
       {"e", "5"}
     ] = Exoml.Decoder.attrs("a=1 b='2' c=\"3\" d e = 5 /")
   end
@@ -158,7 +176,7 @@ defmodule ExomlTest do
       {"a", "1"},
       "src/",
       {"b", "2"},
-      {"c"},
+      {"c", "c"},
       {"d", "4"},
       "argshit/"
     ] = Exoml.Decoder.attrs(" a=1 src/ b='2' c d=\"4\" argshit/ /")
@@ -166,8 +184,8 @@ defmodule ExomlTest do
 
   test "invalid closing tags" do
     assert {:root, [], ["</xml>"]} = Exoml.decode("</xml>")
-    assert {"tag", [], ["  </garble>", {"img", [{"src", "http://foobar.com"}], nil}, "some text"]} = Exoml.decode("<tag>  </garble><img src=http://foobar.com />some text")
-    assert {"tag", [], ["  </garble> gurble ", {"img", [{"src", "http://foobar.com"}], nil}, "some text"]} = Exoml.decode("<tag>  </garble> gurble <img src=http://foobar.com />some text")
+    assert {:root, [], [{"tag", [], ["  </garble>", {"img", [{"src", "http://foobar.com"}], nil}, "some text"]}]} = Exoml.decode("<tag>  </garble><img src=http://foobar.com />some text")
+    assert {:root, [], [{"tag", [], ["  </garble> gurble ", {"img", [{"src", "http://foobar.com"}], nil}, "some text"]}]} = Exoml.decode("<tag>  </garble> gurble <img src=http://foobar.com />some text")
   end
 
   test "full document with broken stuff" do
@@ -187,6 +205,7 @@ defmodule ExomlTest do
       </body>
       </html>
     """
-    IO.inspect Exoml.decode(html)
+    Exoml.decode(html)
   end
 end
+

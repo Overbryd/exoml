@@ -1,11 +1,7 @@
 defmodule Exoml.Encoder do
 
-  def encode(tree) when is_tuple(tree) do
-    encode(tree, "")
-  end
-
-  defp encode({:root, _, children}, acc) do
-    encode(children, acc)
+  def encode({:root, _, children}) when is_list(children) do
+    encode(children, "")
   end
 
   defp encode(bin, acc) when is_binary(bin) do
@@ -45,8 +41,6 @@ defmodule Exoml.Encoder do
   defp encode_attrs(attrs) do
     encode_attrs(attrs, "")
   end
-
-  defp encode_attrs([]), do: ""
 
   defp encode_attrs([attr | tl], "") do
     encode_attr(attr) <> encode_attrs(tl)
