@@ -2,12 +2,12 @@ defmodule Exoml do
   @moduledoc """
   A module to decode/encode xml into a tree structure.
 
-  The aim of this parser is to be able to represent any xml/html5 document as a tree-like structure,
+  The aim of this parser is to be able to represent any xml document as a tree-like structure,
   but be able to put it back together in a sane way.
 
   In comparison to other xml parsers, this one preserves broken stuff.
   The goal is to be able to decode the typical broken html document, modify it, and encode it again,
-  without loosing too much of its quirks.
+  without loosing too much of its original content.
 
   Currently the parser preserves whitespace between &lt;xml> nodes, so &lt;pre> or &lt;textarea> tags should be unaffected,
   by a `decode/1` into `encode/1`.
@@ -29,7 +29,7 @@ defmodule Exoml do
   @type xmlroot() :: {:root, [], xmlnode_list()}
 
   @doc """
-  Returns a tree representation from the given xml/html5 string.
+  Returns a tree representation from the given xml string.
 
   ## Examples
 
