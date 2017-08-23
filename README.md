@@ -41,8 +41,15 @@ xml = ~s'<tag foo="bar">some text</tag>'
 ## Performance
 
 See `bench/` directory or run `mix bench` upon checkout.
+There is one performance test that uses a `131K` html file.
 
-Here are the results on a `MacBookPro11,5 i7 2.5GHz 16GB RAM`:
+On a `MacBookPro11,5 i7 2.5GHz 16GB RAM` it yields:
+
+```
+benchma iterations   average time 
+encode         100   12716.29 µs/op
+decode          50   42088.74 µs/op
+```
 
 ## Installation
 
