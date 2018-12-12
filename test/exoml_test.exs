@@ -6,6 +6,11 @@ defmodule ExomlTest do
     assert xml == Exoml.encode(Exoml.decode(xml))
   end
 
+  test "back and forth 2 attributes" do
+    xml = "<tag foo=\"bar\" bar=\"foo\">some text</tag>"
+    assert xml == Exoml.encode(Exoml.decode(xml))
+  end
+
   test "virtual root node, never gonna give you up" do
     assert {:root, [], [{"tag", [], nil}, {"tag", [], nil}]} = Exoml.decode("<tag/><tag/>")
     assert {:root, [], ["\nfoo"]} = Exoml.decode("\nfoo")

@@ -42,10 +42,6 @@ defmodule Exoml.Encoder do
     encode_attrs(attrs, "")
   end
 
-  defp encode_attrs([attr | tl], "") do
-    encode_attr(attr) <> encode_attrs(tl)
-  end
-
   defp encode_attrs([attr | tl], acc) do
     trail = encode_attr(attr)
     if acc == "" do
