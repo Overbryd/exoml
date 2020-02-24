@@ -2,6 +2,10 @@
 
 A module to decode/encode xml into a tree structure.
 
+```
+{:exoml, "~> 0.0.4"},
+```
+
 ## Examples
 
 Handles well formed xml/html.

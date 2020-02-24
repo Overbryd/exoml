@@ -79,7 +79,7 @@ defmodule Exoml.Decoder do
   end
 
   defp content(<<"</", bin :: binary>>, tag, lead) do
-    len = String.length(tag)
+    len = byte_size(tag)
     with <<^tag :: binary-size(len), rest :: binary>> <- bin,
       <<">", trail :: binary>> <- String.trim_leading(rest) do
       if lead == "" do
@@ -104,8 +104,8 @@ defmodule Exoml.Decoder do
     {children, trail}
   end
 
-  defp content(<<lead :: binary-size(1), bin :: binary>>, tag, acc) do
-    content(bin, tag, acc <> lead)
+  defp content(<<lead :: utf8, bin :: binary>>, tag, acc) do
+    content(bin, tag, acc <> <<lead::utf8>>)
   end
 
   defp content("", _tag, lead) do
@@ -138,7 +138,7 @@ defmodule Exoml.Decoder do
 
   defp node(<<"<", bin :: binary>>) do
     [header, trail] = String.split(bin, ">", parts: 2)
-    len = String.length(header) - 1
+    len = byte_size(header) - 1
     case header do
       # self closing tag
       <<header :: binary-size(len), "/">> ->
@@ -158,7 +158,7 @@ defmodule Exoml.Decoder do
     {tag, attrs}
   end
 
-  defp tag(<<ws :: binary-size(1), _ :: binary>> = bin, acc) when ws in @ascii_whitespace do
+  defp tag(<<ws :: utf8, _ :: binary>> = bin, acc) when <<ws::utf8>> in @ascii_whitespace do
     {acc, bin}
   end
 
@@ -170,8 +170,8 @@ defmodule Exoml.Decoder do
     {acc, ""}
   end
 
-  defp tag(<<part :: binary-size(1), trail :: binary>>, acc) do
-    tag(trail, acc <> part)
+  defp tag(<<part :: utf8, trail :: binary>>, acc) do
+    tag(trail, acc <> <<part::utf8>>)
   end
 
   def attrs(bin) do
@@ -179,18 +179,18 @@ defmodule Exoml.Decoder do
   end
 
   # strip whitespace before attribute name
-  defp attrs(<<ws :: binary-size(1), trail :: binary>>, acc) when ws in @ascii_whitespace do
+  defp attrs(<<ws :: utf8, trail :: binary>>, acc) when <<ws::utf8>> in @ascii_whitespace do
     attrs(trail, acc)
   end
 
   # return on stop character
-  defp attrs(<<stop :: binary-size(1)>>, acc) when stop in @attr_name_stop, do: attrs("", acc)
+  defp attrs(<<stop :: utf8>>, acc) when <<stop::utf8>> in @attr_name_stop, do: attrs("", acc)
 
   # return on empty head
   defp attrs("", acc), do: Enum.reverse(acc)
 
   # pass to attr name
-  defp attrs(<<_part :: binary-size(1), _ :: binary>> = bin, acc) do
+  defp attrs(<<_part :: utf8, _ :: binary>> = bin, acc) do
     attr_name(bin, "", acc)
   end
 
@@ -204,16 +204,16 @@ defmodule Exoml.Decoder do
     attrs(trail, ["#{name}/" | acc])
   end
 
-  defp attr_name(<<ws :: binary-size(1), trail :: binary>>, "", acc) when ws in @ascii_whitespace do
+  defp attr_name(<<ws :: utf8, trail :: binary>>, "", acc) when <<ws::utf8>> in @ascii_whitespace do
     attr_name(trail, "", acc)
   end
 
-  defp attr_name(<<stop :: binary-size(1), _ :: binary>> = bin, name, acc) when stop in @attr_name_stop do
+  defp attr_name(<<stop :: utf8, _ :: binary>> = bin, name, acc) when <<stop::utf8>> in @attr_name_stop do
     attr_value(bin, name, nil, acc)
   end
 
-  defp attr_name(<<part :: binary-size(1), trail :: binary>>, name, acc) do
-    attr_name(trail, name <> part, acc)
+  defp attr_name(<<part :: utf8, trail :: binary>>, name, acc) do
+    attr_name(trail, name <> <<part::utf8>>, acc)
   end
 
   defp attr_name("", name, acc) do
@@ -223,17 +223,17 @@ defmodule Exoml.Decoder do
   # value
 
   # strip whitespace before attribute value
-  defp attr_value(<<ws :: binary-size(1), trail :: binary>>, name, nil, acc) when ws in @ascii_whitespace do
+  defp attr_value(<<ws :: utf8, trail :: binary>>, name, nil, acc) when <<ws::utf8>> in @ascii_whitespace do
     attr_value(trail, name, nil, acc)
   end
 
   # strip whitespace before attribute value
-  defp attr_value(<<ws :: binary-size(1), trail :: binary>>, name, "", acc) when ws in @ascii_whitespace do
+  defp attr_value(<<ws :: utf8, trail :: binary>>, name, "", acc) when <<ws::utf8>> in @ascii_whitespace do
     attr_value(trail, name, "", acc)
   end
 
   # stop on whitespace for unquoted attribute values
-  defp attr_value(<<ws :: binary-size(1), trail :: binary>>, name, value, acc) when ws in @ascii_whitespace do
+  defp attr_value(<<ws :: utf8, trail :: binary>>, name, value, acc) when <<ws::utf8>> in @ascii_whitespace do
     attrs(trail, [{name, value} | acc])
   end
 
@@ -241,14 +241,15 @@ defmodule Exoml.Decoder do
     attr_value(trail, name, "", acc)
   end
 
-  defp attr_value(<<qt :: binary-size(1), trail :: binary>>, name, "", acc) when qt in @attr_value_quote do
-    case String.split(trail, qt, parts: 2) do
+  defp attr_value(<<qt :: utf8, trail :: binary>>, name, "", acc) when <<qt::utf8>> in @attr_value_quote do
+    case String.split(trail, <<qt::utf8>>, parts: 2) do
       # quote terminates
       [value, trail] ->
         attrs(trail, [{name, value} | acc])
       # unterminated quote
       [trail] ->
-        attrs("", ["#{name}=#{qt}#{String.trim_trailing(trail, " /")}"])
+        # attrs("", [{name, trail} | acc])
+        attrs("", ["#{name}=#{<<qt::utf8>>}#{String.trim_trailing(trail, " /")}"])
     end
   end
 
@@ -260,8 +261,12 @@ defmodule Exoml.Decoder do
     attrs(trail, [{name, name} | acc])
   end
 
-  defp attr_value(<<part :: binary-size(1), trail :: binary>>, name, value, acc) do
-    attr_value(trail, name, "#{value}#{part}", acc)
+  defp attr_value(<<part :: utf8, trail :: binary>>, name, value, acc) do
+    attr_value(trail, name, "#{value}#{<<part::utf8>>}", acc)
+  end
+
+  defp attr_value("", "", "", acc) do
+    acc
   end
 
   defp attr_value("", name, value, acc) do
@@ -274,5 +279,5 @@ defmodule Exoml.Decoder do
     end |> Enum.reverse
   end
 
-
 end
+
