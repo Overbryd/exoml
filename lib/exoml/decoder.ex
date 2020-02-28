@@ -13,46 +13,30 @@ defmodule Exoml.Decoder do
   defp root("", children), do: {:root, [], children}
 
   defp root(bin, children) do
-    {nodes, trail} = content(bin, "", "")
+    {nodes, trail} = content(bin, :root, "")
     root(trail, children ++ nodes)
-  end
-
-  # comment
-
-  defp content(<<"<!--", bin :: binary>>, "", lead) do
-    nodes = if lead == "" do
-      []
-    else
-      [lead]
-    end
-    case String.split(bin, "-->", parts: 2) do
-      # closing comment
-      [body, trail] ->
-        node = {:comment, [], [body]}
-        {[node | nodes], trail}
-      # unclosed comment
-      [trail] ->
-        {["<!--#{trail}" | nodes], ""}
-    end
   end
 
   # prolog
 
-  defp content(<<"<?", xml :: binary-size(3), trail :: binary>>, "", lead) do
+  defp content(<<"<?", xml :: binary-size(3), trail :: binary>>, :root, lead) do
     if String.upcase(xml) == "XML" do
       prolog(xml, trail, lead)
     else
-      content(trail, "", lead <> "<?" <> xml)
+      content(trail, :root, lead <> "<?" <> xml)
     end
   end
 
   # <!DOCTYPE
 
-  defp content(<<"<!", dt :: binary-size(7), trail :: binary>>, "", lead) do
+  defp content(<<"<!", dta::binary-size(2), dtb :: binary-size(5), trail :: binary>>, :root, lead)
+  when dta != "--"
+  do
+    dt = dta <> dtb
     if String.upcase(dt) == "DOCTYPE" do
       doctype(dt, trail, lead)
     else
-      content(trail, "", lead <> "<!" <> dt)
+      content(trail, :root, lead <> "<!" <> dt)
     end
   end
 
@@ -74,8 +58,8 @@ defmodule Exoml.Decoder do
     end
   end
 
-  defp content(<<"</", bin :: binary>>, "", lead) do
-    content(bin, "", lead <> "</")
+  defp content(<<"</", bin :: binary>>, :root, lead) do
+    content(bin, :root, lead <> "</")
   end
 
   defp content(<<"</", bin :: binary>>, tag, lead) do
@@ -92,6 +76,21 @@ defmodule Exoml.Decoder do
         content(trail, tag, lead <> "</")
     end
   end
+
+  # comment
+
+  defp content(<<"<!--"::binary, _ :: binary>> = bin, tag, lead) do
+    {node, trail} = comment(bin)
+    {contents, trail} = content(trail, tag, "")
+    children = if lead == "" do
+      [node | contents]
+    else
+      [lead, node | contents]
+    end
+    {children, trail}
+  end
+
+  # node
 
   defp content(<<"<", _ :: binary>> = bin, tag, lead) do
     {node, trail} = node(bin)
@@ -136,19 +135,35 @@ defmodule Exoml.Decoder do
     end
   end
 
+  defp comment(<<"<!--", bin :: binary>>) do
+    case String.split(bin, "-->", parts: 2) do
+      # closing comment
+      [body, trail] ->
+        node = {:comment, [], [body]}
+        {node, trail}
+      # unclosed comment
+      [trail] ->
+        {"<!--#{trail}", ""}
+    end
+  end
+
   defp node(<<"<", bin :: binary>>) do
-    [header, trail] = String.split(bin, ">", parts: 2)
-    len = byte_size(header) - 1
-    case header do
-      # self closing tag
-      <<header :: binary-size(len), "/">> ->
-        {tag, attrs} = tag(header)
-        {{tag, attrs, nil}, trail}
-      # open tag with children
-      header ->
-        {tag, attrs} = tag(header)
-        {content, rest} = content(trail, tag, "")
-        {{tag, attrs, content}, rest}
+    case String.split(bin, ">", parts: 2) do
+      [header, trail] ->
+        len = byte_size(header) - 1
+        case header do
+          # self closing tag
+          <<header :: binary-size(len), "/">> ->
+            {tag, attrs} = tag(header)
+            {{tag, attrs, nil}, trail}
+          # open tag with children
+          header ->
+            {tag, attrs} = tag(header)
+            {content, rest} = content(trail, tag, "")
+            {{tag, attrs, content}, rest}
+        end
+      [trail] ->
+        {"<#{bin}", ""}
     end
   end
 

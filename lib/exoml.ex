@@ -26,7 +26,8 @@ defmodule Exoml do
     {binary(), attr_list(), nil} |
     {atom(), attr_list(), nil} |
     {atom(), attr_list(), xmlnode_list()}
-  @type xmlroot() :: {:root, [], xmlnode_list()}
+  @type opts() :: [{atom(), any()}]
+  @type xmlroot() :: {:root, opts(), xmlnode_list()}
 
   @doc """
   Returns a tree representation from the given xml string.
@@ -51,6 +52,11 @@ defmodule Exoml do
   @spec decode(binary()) :: xmlroot()
   def decode(bin) when is_binary(bin) do
     Exoml.Decoder.decode(bin)
+  end
+
+  @spec decode(binary(), opts()) :: xmlroot()
+  def decode(bin, args \\ %{}) when is_binary(bin) do
+    Exoml.Decoder.decode(bin, args)
   end
 
   @doc """

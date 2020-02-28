@@ -193,6 +193,10 @@ defmodule ExomlTest do
     assert {:root, [], [{"tag", [], ["  </garble> gurble ", {"img", [{"src", "http://foobar.com"}], nil}, "some text"]}]} = Exoml.decode("<tag>  </garble> gurble <img src=http://foobar.com />some text")
   end
 
+  test "unclosed tag" do
+    assert {:root, [], ["<unclosed"]} = Exoml.decode("<unclosed")
+  end
+
   test "full document with broken stuff" do
     html = """
       <?xml version=1.0 encoding=utf-8?>
@@ -211,6 +215,30 @@ defmodule ExomlTest do
       </html>
     """
     Exoml.decode(html)
+  end
+
+  test "comments within a tag" do
+  xml = """
+<channel>
+  <generator>https://wordpress.org/?v=5.3.2</generator>
+\n<!-- podcast_generator=\"Blubrry PowerPress/8.2.5\" mode=\"advanced\" feedslug=\"podcast\" Blubrry PowerPress Podcasting plugin for WordPress (https://www.blubrry.com/powerpress/) -->\n\t<atom:link rel=\"hub\" href=\"https://pubsubhubbub.appspot.com/\" />
+</channel>
+  """
+  assert {:root, [], [
+    {"channel", [],
+     [
+       "\n",
+       {"generator", [], ["https://wordpress.org/?v=5.3.2"]},
+       "\n\n",
+       {:comment, [],
+        [" podcast_generator=\"Blubrry PowerPress/8.2.5\" mode=\"advanced\" feedslug=\"podcast\" Blubrry PowerPress Podcasting plugin for WordPress (https://www.blubrry.com/powerpress/) "]},
+       "\n\t",
+       {"atom:link",
+        [{"rel", "hub"}, {"href", "https://pubsubhubbub.appspot.com/"}], nil},
+       "\n"
+     ]},
+    "\n"
+  ]} = Exoml.decode(xml)
   end
 end
 
