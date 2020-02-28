@@ -23,8 +23,8 @@ defmodule Exoml.Mixfile do
 
   defp deps do
     [
-      {:ex_doc, "~> 0.19", only: :dev},
-      {:benchfella, "~> 0.3.0", only: :dev}
+      {:ex_doc, "~> 0.21", only: :dev},
+      {:benchfella, "~> 0.3", only: :dev}
     ]
   end
 end
