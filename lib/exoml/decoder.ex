@@ -5,6 +5,15 @@ defmodule Exoml.Decoder do
   @ascii_control Enum.map(0x007f..0x009f, &(<<&1>>))
   @attr_name_stop @ascii_whitespace ++ @ascii_control ++ [~s' ', "'", ">", "/", "="]
   @attr_value_quote ["'", ~s'"']
+  @escape_sequences %{
+    "&amp;" => "&",
+    "&lt;" => "<",
+    "&gt;" => ">",
+    "&quot;" => "\"",
+    "&apos;" => "'",
+  }
+
+  def escape_sequences(), do: @escape_sequences
 
   def decode(bin) when is_binary(bin) do
     root(bin, [])
@@ -103,6 +112,24 @@ defmodule Exoml.Decoder do
     {children, trail}
   end
 
+  for {sequence, value} <- @escape_sequences do
+    defp content(<<unquote(sequence), bin :: binary>>, tag, acc)
+    when is_binary(tag) and tag != ""
+    do
+      content(bin, tag, acc <> <<unquote(value)::utf8>>)
+    end
+  end
+
+  for size <- 1..6 do
+    defp content(<<"&#x", hex::binary-size(unquote(size)), ";", bin :: binary>>, tag, acc)
+    when is_binary(tag), do: content_hexadecimal_character_reference(hex, bin, tag, acc)
+  end
+
+  for size <- 1..8 do
+    defp content(<<"&#", decimal::binary-size(unquote(size)), ";", bin :: binary>>, tag, acc)
+    when is_binary(tag), do: content_decimal_character_reference(decimal, bin, tag, acc)
+  end
+
   defp content(<<lead :: utf8, bin :: binary>>, tag, acc) do
     content(bin, tag, acc <> <<lead::utf8>>)
   end
@@ -112,6 +139,24 @@ defmodule Exoml.Decoder do
       {[], ""}
     else
       {[lead], ""}
+    end
+  end
+
+  defp content_decimal_character_reference(decimal, bin, tag, acc) when is_binary(decimal) do
+    case Integer.parse(decimal, 10) do
+      {decimal, ""} ->
+        content(bin, tag, acc <> <<decimal::utf8>>)
+      _ ->
+        content(bin, tag, acc <> "&##{decimal};")
+    end
+  end
+
+  defp content_hexadecimal_character_reference(hex, bin, tag, acc) do
+    case Integer.parse(hex, 16) do
+      {decimal, ""} ->
+        content(bin, tag, acc <> <<decimal::utf8>>)
+      _ ->
+        content(bin, tag, acc <> "&#x#{hex};")
     end
   end
 
