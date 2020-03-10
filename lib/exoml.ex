@@ -54,11 +54,6 @@ defmodule Exoml do
     Exoml.Decoder.decode(bin)
   end
 
-  @spec decode(binary(), opts()) :: xmlroot()
-  def decode(bin, args \\ %{}) when is_binary(bin) do
-    Exoml.Decoder.decode(bin, args)
-  end
-
   @doc """
   Returns a string representation from the given xml tree
 

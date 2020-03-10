@@ -5,15 +5,6 @@ defmodule Exoml.Decoder do
   @ascii_control Enum.map(0x007f..0x009f, &(<<&1>>))
   @attr_name_stop @ascii_whitespace ++ @ascii_control ++ [~s' ', "'", ">", "/", "="]
   @attr_value_quote ["'", ~s'"']
-  @escape_sequences %{
-    "&amp;" => "&",
-    "&lt;" => "<",
-    "&gt;" => ">",
-    "&quot;" => "\"",
-    "&apos;" => "'",
-  }
-
-  def escape_sequences(), do: @escape_sequences
 
   def decode(bin) when is_binary(bin) do
     root(bin, [])
@@ -112,22 +103,24 @@ defmodule Exoml.Decoder do
     {children, trail}
   end
 
-  for {sequence, value} <- @escape_sequences do
-    defp content(<<unquote(sequence), bin :: binary>>, tag, acc)
-    when is_binary(tag) and tag != ""
-    do
-      content(bin, tag, acc <> <<unquote(value)::utf8>>)
-    end
-  end
-
+  # hexadecimal character references
   for size <- 1..6 do
     defp content(<<"&#x", hex::binary-size(unquote(size)), ";", bin :: binary>>, tag, acc)
-    when is_binary(tag), do: content_hexadecimal_character_reference(hex, bin, tag, acc)
+    when is_binary(tag) and tag != "", do: content_hexadecimal_character_reference(hex, bin, tag, acc)
   end
 
+  # decimal character references
   for size <- 1..8 do
     defp content(<<"&#", decimal::binary-size(unquote(size)), ";", bin :: binary>>, tag, acc)
-    when is_binary(tag), do: content_decimal_character_reference(decimal, bin, tag, acc)
+    when is_binary(tag) and tag != "", do: content_decimal_character_reference(decimal, bin, tag, acc)
+  end
+
+  # named character references
+  for size <- 2..31 do
+    defp content(<<"&", name::binary-size(unquote(size)), ";", bin :: binary>>, tag, acc)
+    when is_binary(tag) and tag != "" do
+      content(bin, tag, acc <> Exoml.Entities.map(name))
+    end
   end
 
   defp content(<<lead :: utf8, bin :: binary>>, tag, acc) do
@@ -207,7 +200,7 @@ defmodule Exoml.Decoder do
             {content, rest} = content(trail, tag, "")
             {{tag, attrs, content}, rest}
         end
-      [trail] ->
+      [_trail] ->
         {"<#{bin}", ""}
     end
   end

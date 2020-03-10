@@ -17,18 +17,10 @@ defmodule Exoml.XMLEscapeSequencesTest do
     ]} == Exoml.decode("<text><![CDATA[#{cdata}]]></text>")
   end
 
-  test "named xml sequences" do
-    sequences = Exoml.Decoder.escape_sequences()
-    xml = """
-      <text>#{Map.keys(sequences) |> Enum.join("\n")}</text>
-    """
-    assert {:root, [], [
-      "  ",
-      {"text", [], [
-        Map.values(sequences) |> Enum.join("\n")
-      ]},
-      "\n"
-    ]} == Exoml.decode(xml)
+  test "named entities" do
+    for {name, utf8} <- Exoml.Entities.entities() do
+      assert {:root, [], [{"text", [], [utf8]}]} == Exoml.decode("<text>&#{name};</text>")
+    end
   end
 
   test "decimal character references" do
