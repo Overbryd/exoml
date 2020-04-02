@@ -1642,5 +1642,12 @@ defmodule Exoml.Entities do
   def map(entity) do
     Map.get(@entities, String.downcase(entity), entity)
   end
+
+  def replace(string) when is_binary(string) do
+    Regex.replace(~r/&([a-zA-Z]+);/, string, fn _, entity ->
+      Map.get(@entities, String.downcase(entity), entity)
+    end)
+  end
+
 end
 

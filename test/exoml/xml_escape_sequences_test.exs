@@ -3,8 +3,15 @@ defmodule Exoml.XMLEscapeSequencesTest do
 
   test "text is text outside of tags" do
     not_xml = "&quot;"
-    assert {:root, [], ["&quot;"]} == Exoml.decode(not_xml)
+    assert {:root, [], [not_xml]} == Exoml.decode(not_xml)
     assert {:root, [], [{"text", [], ["hello"]}, not_xml]} == Exoml.decode("<text>hello</text>#{not_xml}")
+  end
+
+  test "named entities inside attributes" do
+    xml = "<itunes:image href=\"&amp;size=Large\"></itunes:image>"
+    assert {:root, [], [
+      {"itunes:image", ["href", "&size=Large"], []}
+    ]}
   end
 
   test "text is text inside of <![CDATA[ ... ]]" do
