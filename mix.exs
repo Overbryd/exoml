@@ -4,7 +4,7 @@ defmodule Exoml.Mixfile do
   def project do
     [
       app: :exoml,
-      version: "0.0.9",
+      version: "0.0.10",
       elixir: "~> 1.5",
       start_permanent: Mix.env == :prod,
       description: "A module to decode/encode xml into a tree structure",

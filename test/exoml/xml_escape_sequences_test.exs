@@ -10,8 +10,8 @@ defmodule Exoml.XMLEscapeSequencesTest do
   test "named entities inside attributes" do
     xml = "<itunes:image href=\"&amp;size=Large\"></itunes:image>"
     assert {:root, [], [
-      {"itunes:image", ["href", "&size=Large"], []}
-    ]}
+      {"itunes:image", [{"href", "&size=Large"}], []}
+    ]} == Exoml.decode(xml)
   end
 
   test "text is text inside of <![CDATA[ ... ]]" do

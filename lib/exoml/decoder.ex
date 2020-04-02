@@ -298,6 +298,7 @@ defmodule Exoml.Decoder do
     case String.split(trail, <<qt::utf8>>, parts: 2) do
       # quote terminates
       [value, trail] ->
+        value = Exoml.Entities.replace(value)
         attrs(trail, [{name, value} | acc])
       # unterminated quote
       [trail] ->
@@ -314,25 +315,6 @@ defmodule Exoml.Decoder do
     attrs(trail, [{name, name} | acc])
   end
 
-  # hexadecimal character references
-  for size <- 1..6 do
-    defp attr_value(<<"&#x", hex::binary-size(unquote(size)), ";", trail :: binary>>, name, value, acc),
-    do: attr_value_hexadecimal_character_reference(hex, trail, name, value, acc)
-  end
-
-  # decimal character references
-  for size <- 1..8 do
-    defp attr_value(<<"&#", decimal::binary-size(unquote(size)), ";", trail :: binary>>, name, value, acc),
-    do: attr_value_decimal_character_reference(decimal, trail, name, value, acc)
-  end
-
-  # named character references
-  for size <- 2..31 do
-    defp attr_value(<<"&", name::binary-size(unquote(size)), ";", trail :: binary>>, name, value, acc) do
-      attr_value(trail, name, value <> Exoml.Entities.map(name), acc)
-    end
-  end
-
   defp attr_value(<<part :: utf8, trail :: binary>>, name, value, acc) do
     attr_value(trail, name, "#{value}#{<<part::utf8>>}", acc)
   end
@@ -347,26 +329,9 @@ defmodule Exoml.Decoder do
       [{name, name} | acc]
     else
       # key-value attribute
+      value = Exoml.Entities.replace(value)
       [{name, value} | acc]
     end |> Enum.reverse
-  end
-
-  defp attr_value_decimal_character_reference(decimal, trail, name, value, acc) when is_binary(decimal) do
-    case Integer.parse(decimal, 10) do
-      {decimal, ""} ->
-        attr_value(trail, name, value <> <<decimal::utf8>>, acc)
-      _ ->
-        attr_value(trail, name, value <> "&##{decimal};", acc)
-    end
-  end
-
-  defp attr_value_hexadecimal_character_reference(hex, trail, name, value, acc) do
-    case Integer.parse(hex, 16) do
-      {decimal, ""} ->
-        attr_value(trail, name, value <> <<decimal::utf8>>, acc)
-      _ ->
-        attr_value(trail, name, value <> "&#x#{hex};", acc)
-    end
   end
 
 end

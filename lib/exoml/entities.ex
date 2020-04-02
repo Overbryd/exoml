@@ -1644,9 +1644,37 @@ defmodule Exoml.Entities do
   end
 
   def replace(string) when is_binary(string) do
-    Regex.replace(~r/&([a-zA-Z]+);/, string, fn _, entity ->
-      Map.get(@entities, String.downcase(entity), entity)
+    Regex.replace(~r/&([a-zA-Z]+|#[0-9]+|#x[A-Fa-f0-9]+);/, string, fn _, entity ->
+      if String.starts_with?(entity, "#") do
+        replace_numeric_entity(entity)
+      else
+        Map.get(@entities, String.downcase(entity), entity)
+      end
     end)
+  end
+
+  defp replace_numeric_entity(<<"#x" :: binary, _ :: binary>> = entity) do
+    replace_hexadecimal_entity(entity)
+  end
+
+  defp replace_numeric_entity(entity), do: replace_decimal_entity(entity)
+
+  defp replace_decimal_entity(<<"#" :: binary, decimal :: binary>> = entity) do
+    case Integer.parse(decimal, 10) do
+      {decimal, ""} ->
+        <<decimal::utf8>>
+      _ ->
+        entity
+    end
+  end
+
+  defp replace_hexadecimal_entity(<<"#x" :: binary, hex :: binary>> = entity) do
+    case Integer.parse(hex, 16) do
+      {decimal, ""} ->
+        <<decimal::utf8>>
+      _ ->
+        entity
+    end
   end
 
 end
