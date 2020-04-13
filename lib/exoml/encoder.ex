@@ -5,37 +5,37 @@ defmodule Exoml.Encoder do
   end
 
   defp encode(bin, acc) when is_binary(bin) do
-    bin <> acc
+    acc <> bin
   end
 
   defp encode([node | tl], acc) do
-    encode(node, encode(tl, acc))
+    encode(tl, encode(node, acc))
   end
 
   defp encode([], acc), do: acc
 
   defp encode({:prolog, attrs, nil}, acc) do
-    "<?xml " <> encode_attrs(attrs) <> " ?>" <> acc
+    acc <> "<?xml " <> encode_attrs(attrs) <> " ?>"
   end
 
   defp encode({:doctype, attrs, nil}, acc) do
-    "<!DOCTYPE" <> encode_attrs(attrs) <> " !>" <> acc
+    acc <> "<!DOCTYPE" <> encode_attrs(attrs) <> " !>"
   end
 
   defp encode({tag, [], nil}, acc) do
-    "<#{tag}/>" <> acc
+    acc <> "<#{tag}/>"
   end
 
   defp encode({tag, attrs, nil}, acc) do
-    "<#{tag} #{encode_attrs(attrs)} />" <> acc
+    acc <> "<#{tag} #{encode_attrs(attrs)} />"
   end
 
   defp encode({tag, [], children}, acc) do
-    "<#{tag}>" <> encode(children, "") <> "</#{tag}>" <> acc
+    acc <> "<#{tag}>" <> encode(children, "") <> "</#{tag}>"
   end
 
   defp encode({tag, attrs, children}, acc) do
-    "<" <> tag <> " " <> encode_attrs(attrs) <> ">" <> encode(children, "") <> "</#{tag}>" <> acc
+    acc <> "<" <> tag <> " " <> encode_attrs(attrs) <> ">" <> encode(children, "") <> "</#{tag}>"
   end
 
   defp encode_attrs(attrs) do
